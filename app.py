@@ -1,3 +1,4 @@
+import re
 from io import BytesIO
 
 import bs4
@@ -93,6 +94,8 @@ def combineWeeklyCollections():
 def getInspectionDetails(inspections):
     # tenWorstInspections = inspections.head(10)
     worstInspection = inspections.head(1)
+    # worstInspection = inspections.iloc[2]
+    print(worstInspection)
     worstInspectionLink = worstInspection['Link'].values[0]
     
     response = requests.get(worstInspectionLink)
@@ -103,13 +106,52 @@ def getInspectionDetails(inspections):
     repeat_violations = soup.find_all('td')[15].find('strong').get_text().strip()[-1]
     score = soup.find_all('td')[16].get_text().strip()
     address = soup.find_all('td')[17].get_text().strip()[18:].replace('  ', ' ')
-    # observationTable = soup.select('#container > #main > .padL')[2]
-    print(f"""Restaurant: {restaurant_name}
-Address: {address}
-Inspection Date: {inspection_date}
-Score: {score}
-Repeat Violations: {repeat_violations}
-""")
+
+    # Find all the table elements on the page that have a class of "padL"
+    # This will give us the table elements that contain the inspection details.
+    table_elements = soup.find_all('table', class_='padL')
+
+    # Loop through each table element and add the text from each td element to a list.
+    # We will use this list to create a dataframe.
+    data = []
+    for table_element in table_elements:
+        for td in table_element.find_all('td'):
+            # If the td element text contains "AT INSPECTION:" add it to the list.
+            if "AT INSPECTION:" in td.get_text():
+                keyword = "AT INSPECTION:"
+                before_keyword, OG_keyword, after_keyword = td.get_text().partition(keyword)
+                # Remove any newlines and extra spaces from the text.
+                after_keyword = after_keyword.replace('\n', '').strip()
+
+                # Change to sentence case.
+                after_keyword = after_keyword[0].upper() + after_keyword[1:].lower()
+                data.append(after_keyword)
+            elif "observed" in td.get_text().lower() and "conditions observed and noted below" not in td.get_text().lower():
+                keyword = "observed"
+                before_keyword, OG_keyword, after_keyword = td.get_text().partition(keyword)
+                # Remove any newlines and extra spaces from the text.
+                after_keyword = after_keyword.replace('\n', '').strip()
+
+                # Change to sentence case.
+                after_keyword = after_keyword[0].upper() + after_keyword[1:].lower()
+                data.append(after_keyword)
+            else:
+                continue
+        
+
+    # Create a dataframe from the list of data.
+    df = pd.DataFrame(data)
+    print(df)
+    df.to_csv('playground/at_inspection_sample.csv', index=False)
+
+
+    
+#     print(f"""Restaurant: {restaurant_name}
+# Address: {address}
+# Inspection Date: {inspection_date}
+# Score: {score}
+# Repeat Violations: {repeat_violations}
+# """)
 
 # TODO: Remove sampleData once you're done testing. Then replace the argument in getInspectionDetails with combineWeeklyCollections().
 sampleData = pd.read_excel('playground/sample.xlsx')
