@@ -85,7 +85,32 @@ def combineWeeklyCollections():
     all_data = all_data.sort_values(by=['TOTAL SCORE'])
 
     # We save the data as a .xlsx file.
-    all_data.to_excel('playground/sample.xlsx', index=False)
+    # all_data.to_excel('playground/sample.xlsx', index=False)
+
+    return all_data
 
 
-combineWeeklyCollections()
+def getInspectionDetails(inspections):
+    # tenWorstInspections = inspections.head(10)
+    worstInspection = inspections.head(1)
+    worstInspectionLink = worstInspection['Link'].values[0]
+    
+    response = requests.get(worstInspectionLink)
+    soup = bs4.BeautifulSoup(response.text, 'html.parser')
+
+    inspection_date = soup.find_all('td')[3].get_text().strip()[5:]
+    restaurant_name = soup.find_all('td')[13].get_text().strip()[19:].title()
+    repeat_violations = soup.find_all('td')[15].find('strong').get_text().strip()[-1]
+    score = soup.find_all('td')[16].get_text().strip()
+    address = soup.find_all('td')[17].get_text().strip()[18:].replace('  ', ' ')
+    # observationTable = soup.select('#container > #main > .padL')[2]
+    print(f"""Restaurant: {restaurant_name}
+Address: {address}
+Inspection Date: {inspection_date}
+Score: {score}
+Repeat Violations: {repeat_violations}
+""")
+
+# TODO: Remove sampleData once you're done testing. Then replace the argument in getInspectionDetails with combineWeeklyCollections().
+sampleData = pd.read_excel('playground/sample.xlsx')
+getInspectionDetails(sampleData)
