@@ -95,8 +95,8 @@ def getInspectionDetails(inspections):
     # tenWorstInspections = inspections.head(10)
     worstInspection = inspections.head(1)
     # worstInspection = inspections.iloc[2]
-    print(worstInspection)
     worstInspectionLink = worstInspection['Link'].values[0]
+
     
     response = requests.get(worstInspectionLink)
     soup = bs4.BeautifulSoup(response.text, 'html.parser')
