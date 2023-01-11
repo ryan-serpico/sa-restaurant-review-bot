@@ -9,10 +9,10 @@ This bot automates the process of story creation.
 ## How it works in plain english
 
 1. The bot loads [Metro Health's page with weekly inspection roundups](https://www.sanantonio.gov/Health/News/RestaurantReports#229314405-2022) for a designated year.
-2. The bot compiles every weeks report into one annual report, sorts it by the inspection score, and drops everything but the ten worst.
-3. The bot then loads each reports inspection page, grabs basic info like the date of the inspection and the address of the restaurant, and, most importantly, what the inspectors observed during their review.
-4. The bot then slings those observations over to GPT-3, asking the LLM to simplify them as well as rank in terms of how gross they are. You can check out the prompt I'm using [here](https://github.com/ryan-serpico/sa-restaurant-review-bot/blob/main/prompts/observation-ranker.txt).
-5. Finally, the bot writes everything out to a markdown file one by one.
+2. It compiles every weeks report into one annual report, sorts it by the inspection score, and drops everything but the ten worst.
+3. It then loads each reports inspection page, grabs basic info like the date of the inspection and the address of the restaurant, and, most importantly, what the inspectors observed during their review.
+4. It then slings those observations over to GPT-3, asking the LLM to simplify them as well as rank in terms of how gross they are. You can check out the prompt I'm using [here](https://github.com/ryan-serpico/sa-restaurant-review-bot/blob/main/prompts/observation-ranker.txt).
+5. Finally, It writes everything out to a markdown file one by one.
 
 ## Run it yourself
 
