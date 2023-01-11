@@ -92,66 +92,65 @@ def combineWeeklyCollections():
 
 
 def getInspectionDetails(inspections):
+    """
+    This function grabs basic information about the worst inspections and isolates the observations.
+    """
     # tenWorstInspections = inspections.head(10)
-    worstInspection = inspections.head(1)
-    # worstInspection = inspections.iloc[2]
-    worstInspectionLink = worstInspection['Link'].values[0]
+    # worstInspection = inspections.head(1)
+    # worstInspectionLink = worstInspection['Link'].values[0]
+
+    worstInspection = inspections.iloc[3]
+    worstInspectionLink = worstInspection['Link']
+    print(worstInspectionLink)
 
     
     response = requests.get(worstInspectionLink)
     soup = bs4.BeautifulSoup(response.text, 'html.parser')
 
     inspection_date = soup.find_all('td')[3].get_text().strip()[5:]
-    restaurant_name = soup.find_all('td')[13].get_text().strip()[19:].title()
+    restaurant_name = soup.find_all('td')[13].get_text().strip()[19:].title().replace('# ', '#')
     repeat_violations = soup.find_all('td')[15].find('strong').get_text().strip()[-1]
     score = soup.find_all('td')[16].get_text().strip()
     address = soup.find_all('td')[17].get_text().strip()[18:].replace('  ', ' ')
+
+    print(restaurant_name)
+    print(inspection_date)
 
     # Find all the table elements on the page that have a class of "padL"
     # This will give us the table elements that contain the inspection details.
     table_elements = soup.find_all('table', class_='padL')
 
-    # Loop through each table element and add the text from each td element to a list.
-    # We will use this list to create a dataframe.
+    # Loop through each table element and add the text from each td element to a list. We will use this list to create a dataframe.
     data = []
+
+    # These are the keywords we are looking for in the td elements.
+    keywordList = ["at inspection", "observed", "encountered"]
+
     for table_element in table_elements:
         for td in table_element.find_all('td'):
-            # If the td element text contains "AT INSPECTION:" add it to the list.
-            if "AT INSPECTION:" in td.get_text():
-                keyword = "AT INSPECTION:"
-                before_keyword, OG_keyword, after_keyword = td.get_text().partition(keyword)
-                # Remove any newlines and extra spaces from the text.
-                after_keyword = after_keyword.replace('\n', '').strip()
+            # If the td element text contains a keyword from the keywordList add it to the list.
+            for keyword in keywordList:
+                if keyword in td.get_text().lower() and "conditions observed and noted below" not in td.get_text().lower():
+                    before_keyword, OG_keyword, after_keyword = td.get_text().lower().partition(keyword)
+                    observation = OG_keyword + after_keyword
 
-                # Change to sentence case.
-                after_keyword = after_keyword[0].upper() + after_keyword[1:].lower()
-                data.append(after_keyword)
-            elif "observed" in td.get_text().lower() and "conditions observed and noted below" not in td.get_text().lower():
-                keyword = "observed"
-                before_keyword, OG_keyword, after_keyword = td.get_text().partition(keyword)
-                # Remove any newlines and extra spaces from the text.
-                after_keyword = after_keyword.replace('\n', '').strip()
+                    # Remove any newlines and extra spaces from the text.
+                    observation = observation.replace('\n', ' ').strip()
 
-                # Change to sentence case.
-                after_keyword = after_keyword[0].upper() + after_keyword[1:].lower()
-                data.append(after_keyword)
-            else:
-                continue
-        
+                    # Change to sentence case.
+                    observation = observation[0].upper() + observation[1:].lower()
+
+                    # Only keep the first sentence of the observation.
+                    observation = observation.split('.')[0] 
+
+                    data.append(observation)
+                else:
+                    continue        
 
     # Create a dataframe from the list of data.
     df = pd.DataFrame(data)
     print(df)
     df.to_csv('playground/at_inspection_sample.csv', index=False)
-
-
-    
-#     print(f"""Restaurant: {restaurant_name}
-# Address: {address}
-# Inspection Date: {inspection_date}
-# Score: {score}
-# Repeat Violations: {repeat_violations}
-# """)
 
 # TODO: Remove sampleData once you're done testing. Then replace the argument in getInspectionDetails with combineWeeklyCollections().
 sampleData = pd.read_excel('playground/sample.xlsx')
