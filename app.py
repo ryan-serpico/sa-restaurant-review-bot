@@ -71,6 +71,7 @@ def combineWeeklyCollections():
     """
     This function combines all the weekly restaurant report collection data into one file, sorts it by total score in ascending order, and saves it as a .xlsx file.
     """
+    print("🐭 Combining weekly collections...")
     # Start a counter to keep track of how many files we've processed.
     counter = 0
 
@@ -121,92 +122,106 @@ def combineWeeklyCollections():
 
 def getInspectionDetails(inspections):
     """
-    This function grabs basic information about the worst inspections and isolates the observations.
+    This function grabs basic information about the worst inspections, isolates the observations and pings GPT-3 for a ranking of the observations.
     """
-    # tenWorstInspections = inspections.head(10)
-    # worstInspection = inspections.head(1)
-    # worstInspectionLink = worstInspection['Link'].values[0]
+    print("🪳 Getting inspection details...")
 
-    worstInspection = inspections.iloc[1]
-    worstInspectionLink = worstInspection['Link']
-    print(worstInspectionLink)
+    # Only keep the first 10 rows of the dataframe.
+    inspections = inspections.head(10)
 
+    # Sort the data frame by total score in descending order.
+    inspections = inspections.sort_values(by=['TOTAL SCORE'], ascending=False)
+
+    # Create a list of the links to the inspection reports.
+    inspection_links = []
     
-    response = requests.get(worstInspectionLink)
-    soup = bs4.BeautifulSoup(response.text, 'html.parser')
+    # Loop the length of the dataframe.
+    for i in range(len(inspections)):
+        inspection_links.append(inspections.iloc[i]['Link'])
 
-    inspection_date = soup.find_all('td')[3].get_text().strip()[5:]
-    restaurant_name = soup.find_all('td')[13].get_text().strip()[19:].title().replace('# ', '#')
-    repeat_violations = soup.find_all('td')[15].find('strong').get_text().strip()[-1]
-    score = soup.find_all('td')[16].get_text().strip()
-    address = soup.find_all('td')[17].get_text().strip()[18:].replace('  ', ' ')
+    # inspection_rank keeps track of the ranking of the current inspection.
+    inspection_rank = 11
 
-    print(restaurant_name)
-    print(inspection_date)
+    for report in inspection_links:
+        response = requests.get(report)
+        soup = bs4.BeautifulSoup(response.text, 'html.parser')
 
-    # Find all the table elements on the page that have a class of "padL"
-    # This will give us the table elements that contain the inspection details.
-    table_elements = soup.find_all('table', class_='padL')
+        inspection_date = soup.find_all('td')[3].get_text().strip()[5:]
+        restaurant_name = soup.find_all('td')[13].get_text().strip()[19:].title().replace('# ', '#')
+        repeat_violations = soup.find_all('td')[15].find('strong').get_text().strip()[-1]
+        score = soup.find_all('td')[16].get_text().strip()
+        address = soup.find_all('td')[17].get_text().strip()[18:].replace('  ', ' ')
+        inspection_rank -= 1
 
-    # Loop through each table element and add the text from each td element to a list. We will use this list to create a dataframe.
-    data = []
+        print(restaurant_name)
+        print(inspection_date)
 
-    # These are the keywords we are looking for in the td elements.
-    keywordList = ["at inspection", "observed", "encountered"]
+        # Find all the table elements on the page that have a class of "padL"
+        # This will give us the table elements that contain the inspection details.
+        table_elements = soup.find_all('table', class_='padL')
 
-    for table_element in table_elements:
-        for td in table_element.find_all('td'):
-            # If the td element text contains a keyword from the keywordList add it to the list.
-            for keyword in keywordList:
-                if keyword in td.get_text().lower() and "conditions observed and noted below" not in td.get_text().lower():
-                    before_keyword, OG_keyword, after_keyword = td.get_text().lower().partition(keyword)
-                    observation = OG_keyword + after_keyword
+        # Loop through each table element and add the text from each td element to a list. We will use this list to create a dataframe.
+        data = []
 
-                    # Remove any newlines and extra spaces from the text.
-                    observation = observation.replace('\n', ' ').strip()
+        # These are the keywords we are looking for in the td elements.
+        keywordList = ["at inspection", "observed", "encountered"]
 
-                    # Change to sentence case.
-                    observation = observation[0].upper() + observation[1:].lower()
+        for table_element in table_elements:
+            for td in table_element.find_all('td'):
+                # If the td element text contains a keyword from the keywordList add it to the list.
+                for keyword in keywordList:
+                    if keyword in td.get_text().lower() and "conditions observed and noted below" not in td.get_text().lower():
+                        before_keyword, OG_keyword, after_keyword = td.get_text().lower().partition(keyword)
+                        observation = OG_keyword + after_keyword
 
-                    # Only keep the first sentence of the observation.
-                    observation = observation.split('.')[0] 
+                        # Remove any newlines and extra spaces from the text.
+                        observation = observation.replace('\n', ' ').strip()
 
-                    data.append(observation)
-                else:
-                    continue
+                        # Change to sentence case.
+                        observation = observation[0].upper() + observation[1:].lower()
 
-    print(f'There are {len(data)} observations in this file.')
+                        # Only keep the first sentence of the observation.
+                        observation = observation.split('.')[0] 
 
-    # Join the data list with a newline character.
-    data = '\n- '.join(data)
+                        data.append(observation)
+                    else:
+                        continue
 
-    # Add '-' to the beginning of the string.
-    data = '- ' + data
+        # Join the data list with a newline character.
+        data = '\n- '.join(data)
 
-    rankedObservation = getObservationRankings(data)
+        # Add '-' to the beginning of the string.
+        data = '- ' + data
 
-    inspection_writeup = f"""# {restaurant_name}
+        # Here we're sending the observations to GPT-3 to get a ranked list of the observations in a more readable format.
+        rankedObservation = getObservationRankings(data)
+
+        # Now that we have the cleaned up observations, we can write them to a markdown file.
+        inspection_writeup = f"""\n# {inspection_rank}. {restaurant_name}
 
 ## Inspection Details
 
 - Score: {score}
-- Inspection Date: {inspection_date}
-- Repeat Violations: {repeat_violations}
 - Address: {address}
+- Inspection Date: {inspection_date}
+- [Report link]({report})
+- Repeat Violations: {repeat_violations}
+
 
 ## Raw observations
 {data}
 
-## Ranked Observations
+## Lowlights
 
 {rankedObservation}
+
+---
 """
 
-    # Write a markdown file with the joined data.
-    with open('playground/no_2_example.md', 'w') as f:
-        f = f.write(inspection_writeup)
+        # Write a markdown file with the joined data. If it already exists, append it.
+        with open('output/2022-worst-inspections.md', 'a') as f:
+            # Write a newline character before each new file.
+            f.write(inspection_writeup)
 
-
-# TODO: Remove sampleData once you're done testing. Then replace the argument in getInspectionDetails with combineWeeklyCollections().
-sampleData = pd.read_excel('playground/sample.xlsx')
-getInspectionDetails(sampleData)
+restaurant_inspections = combineWeeklyCollections()
+getInspectionDetails(restaurant_inspections)
