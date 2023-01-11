@@ -1,11 +1,39 @@
+import asyncio
+import os
 import re
 from io import BytesIO
 
 import bs4
+import openai
 import openpyxl
 import pandas as pd
 import requests
+from chronological import cleaned_completion, main, read_prompt
+from dotenv import load_dotenv
 
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# The following are parameters for the OpenAI API
+MAX_TOKENS = 800
+ENGINE = "text-davinci-003"
+TEMPERATURE = 0.1
+TOP_P = 1
+PRESENCE_PENALTY = 0
+
+# you can name this function anything you want, the name "logic" is arbitrary
+async def logic(text):
+    # return await getCompletion(text)
+    print('Running!')
+    # you call the Chronology functions, awaiting the ones that are marked await
+    prompt = read_prompt('observation-ranker').format(text)
+    completion = await cleaned_completion(prompt, max_tokens=MAX_TOKENS, engine=ENGINE, temperature=TEMPERATURE, top_p=TOP_P, presence_penalty=PRESENCE_PENALTY)
+
+    # return '{}'.format(completion)
+    return completion
+
+def getObservationRankings(raw_observations):
+    return asyncio.run(logic(raw_observations))
 
 # This fuction allows us to read an excel file from a url using openpyxl.
 def load_workbook_from_url(url):
@@ -99,7 +127,7 @@ def getInspectionDetails(inspections):
     # worstInspection = inspections.head(1)
     # worstInspectionLink = worstInspection['Link'].values[0]
 
-    worstInspection = inspections.iloc[3]
+    worstInspection = inspections.iloc[1]
     worstInspectionLink = worstInspection['Link']
     print(worstInspectionLink)
 
@@ -145,12 +173,39 @@ def getInspectionDetails(inspections):
 
                     data.append(observation)
                 else:
-                    continue        
+                    continue
 
-    # Create a dataframe from the list of data.
-    df = pd.DataFrame(data)
-    print(df)
-    df.to_csv('playground/at_inspection_sample.csv', index=False)
+    print(f'There are {len(data)} observations in this file.')
+
+    # Join the data list with a newline character.
+    data = '\n- '.join(data)
+
+    # Add '-' to the beginning of the string.
+    data = '- ' + data
+
+    rankedObservation = getObservationRankings(data)
+
+    inspection_writeup = f"""# {restaurant_name}
+
+## Inspection Details
+
+- Score: {score}
+- Inspection Date: {inspection_date}
+- Repeat Violations: {repeat_violations}
+- Address: {address}
+
+## Raw observations
+{data}
+
+## Ranked Observations
+
+{rankedObservation}
+"""
+
+    # Write a markdown file with the joined data.
+    with open('playground/no_2_example.md', 'w') as f:
+        f = f.write(inspection_writeup)
+
 
 # TODO: Remove sampleData once you're done testing. Then replace the argument in getInspectionDetails with combineWeeklyCollections().
 sampleData = pd.read_excel('playground/sample.xlsx')
